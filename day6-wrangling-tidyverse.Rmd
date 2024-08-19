@@ -1,0 +1,101 @@
+---
+title: "Day 6 Tidy Data"
+author: "Carmen"
+date: "2024-08-19"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(janitor)
+```
+
+```{r}
+wb_indicators <- read_csv(here("data", "wb_indicators.csv"), na = c("..", ""))
+wb_metadata <- read_csv(here("data", "wb_indicators_metadata.csv"))
+```
+
+```{r}
+wb_indicators_long <- wb_indicators %>%
+  pivot_longer(cols = '2001 [YR2001]':'2020 [YR2020]',
+               names_to = "year",
+               values_to = "indicator_value")
+```
+
+```{r}
+wb_data_clean <- wb_indicators_long %>%
+  separate(col = year, into = c("year", "year_chr"), sep = " ") %>%
+  select(-year_chr, -'Country Code', -'Series Code')
+
+head(wb_data_clean)
+```
+
+```{r}
+wb_data_tidy <- wb_data_clean %>%
+  drop_na('Series Name') %>%
+  pivot_wider(names_from = 'Series Name', values_from = indicator_value)
+
+head(wb_data_tidy)
+```
+
+```{r}
+names(wb_data_tidy) <- c("country", "year", "access_clean_fuels_pp", "access_electricity_pp", "co2_emissions_kt", "fossil_fuel_cons_pt", "water_stress")
+
+head(wb_data_tidy)
+```
+
+```{r}
+us_wb <- wb_data_tidy %>%
+  filter(country == "United States")
+
+head(us_wb)
+```
+
+```{r}
+nicaragua_co2 <- wb_data_tidy %>%
+  filter(country == "Nicaragua") %>%
+  select(year, co2_emissions_kt)
+```
+
+```{r}
+wb_subset <- wb_data_tidy %>%
+  select(-c(water_stress, access_electricity_pp))
+```
+
+```{r}
+wb_newnames <- wb_data_tidy %>%
+  rename(elec = access_electricity_pp, co2 = co2_emissions_kt)
+```
+
+```{r}
+class(wb_data_tidy$year) #character
+
+wb_data_tidy <- wb_data_tidy %>%
+  mutate(year = as.numeric(year))
+
+class(wb_data_tidy$year) #numeric
+
+wb_co2_tons <- wb_data_tidy %>%
+  mutate(co2_tons = co2_emissions_kt * 1000)
+
+head(wb_co2_tons)
+```
+
+```{r}
+co2_total <- wb_data_tidy %>%
+  group_by(country) %>%
+  summarize(total_co2_kt = sum(co2_emissions_kt, na.rm = TRUE))
+
+co2_annual <- wb_data_tidy %>%
+  group_by(year) %>%
+  summarize(annual_total_co2_kt = sum(co2_emissions_kt, na.rm = TRUE))
+
+ggplot(data = co2_annual, aes(x = year, y = annual_total_co2_kt))+
+  geom_line()
+```
+
